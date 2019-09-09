@@ -248,7 +248,7 @@ class Model_train(object):
 
                 dqn_agent.reset_learning_rate(learningrate)
 
-            loss_sum=loss_sum+total_loss/ITERATION
+            loss_sum=loss_sum+total_loss/(ITERATION*su_num)
 
             '''学习率调节'''
             if epoch % 20 == 0:

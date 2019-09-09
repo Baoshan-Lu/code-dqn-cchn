@@ -602,8 +602,12 @@ class CCHN(object):
 
                 energy_detector_cr_router_i.append((energy_from_pu + total_energy_from_su + self.noise_power))
                 # cr_router_energy_state1.append(-np.log(energy_from_pu + total_energy_from_su + self.noise_power) / 10)
-                ''''CR-router上探测到的各个频谱的接收信噪比，作为状态信息'''
-                cr_router_energy_state1.append((energy_from_pu + total_energy_from_su ) / self.noise_power)
+                # ''''CR-router上探测到的各个频谱的接收信噪比，作为状态信息'''
+                # cr_router_energy_state1.append((energy_from_pu + total_energy_from_su ) / self.noise_power)
+
+                ''''CR-router上探测到的各个频谱的PU/SU+N接收信噪比，作为状态信息'''
+                cr_router_energy_state1.append((  total_energy_from_su) / (self.noise_power+ energy_from_pu))
+
 
             cr_router_energy_state.append(energy_detector_cr_router_i)
 

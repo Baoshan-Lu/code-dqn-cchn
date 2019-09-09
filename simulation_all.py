@@ -111,9 +111,9 @@ if __name__ == '__main__':
     batchsize_default = 32
 
     DQN_epoch = 300
-    pu_num = 2
-    su_num = 4
-    crr_num = 20
+    pu_num = 5
+    su_num = 3
+    crr_num = 30
 
     DQN_CG_RA_epoch = 50
 
