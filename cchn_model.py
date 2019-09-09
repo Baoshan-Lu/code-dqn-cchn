@@ -31,6 +31,8 @@ class CCHN(object):
         self.secodary_rate_min = parameters.secodary_rate_min
         self.primary_init_power = parameters.primary_init_power
 
+        self.sense_coverage=parameters.sense_coverage
+
         '''功率可选项'''
         self.power_set = np.round(np.linspace(self.user_power_min, self.user_power_max, self.power_set_number), 2)
 
@@ -490,6 +492,37 @@ class CCHN(object):
 
         return reward
 
+    def calculate_reward_amend(self, vec, co_channel_pu):
+
+        Rate_SU, SINR_SU, Interference_SU = self.calculate_su_sinr_rate(vec)
+        Rate_PU, SINR_PU, Interference_PU = self.calculate_pu_sinr_rate(vec)
+        # print('co_channel_pu:',co_channel_pu, '  Rate_PU[co_channel_pu]:',Rate_PU[co_channel_pu],' A:',Rate_PU[co_channel_pu] - self.primary_rate_min)
+        # print('Rate_SU:',Rate_SU)
+        # print('SINR_SU:',SINR_SU)
+        # print('Interference_SU:',Interference_SU)
+        # print('Rate_PU:',Rate_PU)
+        # print('SINR_PU:',SINR_PU)
+        # print('Interference_PU:',Interference_PU)
+        # vec=self.decision
+        # PU_j=vec[0][su_j]
+        # print('SINR_PU[PU_j]: ', SINR_PU[PU_j])
+        '''reward: sum-rate of IoT links + sum-rate of PU links + the MRQ of co-channel PU link'''
+        x1 = self.weight_reward[0] * sum(Rate_PU)
+        x2 = self.weight_reward[1] * sum(Rate_SU)
+        x3 = self.weight_reward[2] * (Rate_PU[co_channel_pu] - self.primary_rate_min)
+
+        x4 = self.weight_reward[3] * (sum(Rate_PU) - self.primary_number * self.primary_rate_min)
+
+        reward = 10 * (x1 + x2 + x3+ x4) / self.bandwidth
+        # reward=1000*(x1+x2)/self.bandwidth
+
+        # print('\nx1:',x1)
+        # print('x2:',x2)
+        # print('x3:',x3)
+        # print('reward:',reward)
+
+        return reward
+
     def calculate_cr_router_state(self, vec):
 
         primary_coord = self.network[0]
@@ -528,9 +561,63 @@ class CCHN(object):
 
         return cr_router_energy_state, cr_router_energy_state1
 
+    def calculate_cr_router_state_amend(self, vec):
+        ''''''''
+        ''''CR-router 只控制一定范围的频谱感应，不是全网式的搜索'''
+        self.sense_coverage
+        primary_coord = self.network[0]
+        secondary_coord = self.network[1]
+        CR_router_coord = self.network[2]
+
+        # vec=self.decision
+
+        cr_router_energy_state = []
+        cr_router_energy_state1 = []
+        for cr_router_i in range(self.CR_router_number):
+            energy_detector_cr_router_i = []
+            for PU_j in range(self.primary_number):
+                Gain_Tx1_Rx11, Gain_Tx2_Rx11 = self.channelgain(CR_router_coord, primary_coord, cr_router_i, PU_j)
+                '''PU'''
+                '''只有在CR-router的覆盖面内才接收'''
+                if Gain_Tx2_Rx11>=pow(self.sense_coverage,self.channel_gain):
+                    energy_from_pu = self.primary_init_power * Gain_Tx2_Rx11
+                else:
+                    energy_from_pu=0
+
+                energy_from_su = []
+                for su_k in range(self.secondary_number):
+                    if vec[0][su_k] == PU_j:  # 占用同一频谱的全部SU的干扰功率
+                        # print('SU_j:', k)
+                        Gain_Tx1_Rx11, Gain_Tx2_Rx11 = self.channelgain(CR_router_coord, secondary_coord, cr_router_i,su_k)
+
+                        '''只有在CR-router的覆盖面内才接收'''
+                        if Gain_Tx2_Rx11 >=pow(self.sense_coverage, self.channel_gain):
+                            interference_from_su_k = self.power_set[vec[1][su_k]] * Gain_Tx2_Rx11
+                        else:
+                            interference_from_su_k=0
+
+                        energy_from_su.append(interference_from_su_k)
+                '''SU'''
+                total_energy_from_su = sum(energy_from_su)
+
+                energy_detector_cr_router_i.append((energy_from_pu + total_energy_from_su + self.noise_power))
+                # cr_router_energy_state1.append(-np.log(energy_from_pu + total_energy_from_su + self.noise_power) / 10)
+                ''''CR-router上探测到的各个频谱的接收信噪比，作为状态信息'''
+                cr_router_energy_state1.append((energy_from_pu + total_energy_from_su ) / self.noise_power)
+
+            cr_router_energy_state.append(energy_detector_cr_router_i)
+
+            # # cr_router_energy_state=list(np.concatenate(cr_router_energy_state))
+            # cr_router_energy_state=list(np.array(cr_router_energy_state).flat)
+
+        return cr_router_energy_state, cr_router_energy_state1
+
+
+
     def obtain_state(self, vec, su_j):
         # vec=self.decision
-        cr_router_energy_state, cr_router_energy_state1 = self.calculate_cr_router_state(vec)
+        # cr_router_energy_state, cr_router_energy_state1 = self.calculate_cr_router_state(vec)
+        cr_router_energy_state, cr_router_energy_state1 = self.calculate_cr_router_state_amend(vec)
 
         # if su_j+1 < self.secondary_number:
         #     su_j=su_j+1
@@ -695,13 +782,14 @@ class CCHN(object):
         '''new spectrum decision'''
         # vec[0][su_i]=action[0]
         vec1[0][su_i] = action[0]
-
+        co_channel_pu=action[0]
         '''new power decision'''
         # vec[1][su_i]=action[1]
         vec1[1][su_i] = action[1]
 
         self.decision_temp = vec1
-        reward = self.calculate_reward(vec1)
+        reward = self.calculate_reward_amend(vec1,co_channel_pu)
+
         next_state = self.obtain_state(vec1, su_i)
         #
         # print('\nNew Spect_SU:', vec[0])

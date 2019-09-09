@@ -432,29 +432,46 @@ class Model_train(object):
 
     def calculte_user_fairness(self,cchn,agent_name,su_num):
 
-        decision=cchn.init_alloation_test()
-        # print('\nInit_decision:',decision)
+        sum_rate_su=[]
+        sum_rate_pu=[]
+        fairness=[]
+        reward_=[]
 
-        for su_i in range(su_num):
-            state = cchn.obtain_state(decision, su_i)
-            '''根据state，确定su_i的动作'''
-            action =agent_name[su_i].choose_max_Q_action(state)
-            '''执行动作'''
-            cchn.evaluate_environmet_test(action, su_i)
+        for i in range(10):
+            decision=cchn.init_alloation_test()
+            # print('\nInit_decision:',decision)
 
-        '''测试，执行所有动作，系统进入下一个状态'''
-        decision=cchn.test_environmet()
+            for su_i in range(su_num):
+                state = cchn.obtain_state(decision, su_i)
+                '''根据state，确定su_i的动作'''
+                action =agent_name[su_i].choose_max_Q_action(state)
+                '''执行动作'''
+                cchn.evaluate_environmet_test(action, su_i)
 
-        # print('Final_decision:',decision)
+            '''测试，执行所有动作，系统进入下一个状态'''
+            decision=cchn.test_environmet()
 
-        Sum_rate_PU, Sum_rate_SU, SINR_PU, Interference_PU = cchn.get_sum_rate_test(decision)
-        Rate_PU, Rate_SU = cchn.get_sum_rate_game(decision)
+            # print('Final_decision:',decision)
 
-        sum_rate=(Sum_rate_SU+Sum_rate_PU) ** 2
-        user_num=len(Rate_PU)+len(Rate_SU)
-        user_rate=sum(np.array(Rate_SU) ** 2)+sum(np.array(Rate_PU) ** 2)
-        # Fairness = sum_rate/(user_num*user_rate)
-        Fairness = Sum_rate_SU**2/(len(Rate_SU)*sum(np.array(Rate_SU) ** 2))
-        reward= cchn.calculate_reward(decision)
+            Sum_rate_PU, Sum_rate_SU, SINR_PU, Interference_PU = cchn.get_sum_rate_test(decision)
+            Rate_PU, Rate_SU = cchn.get_sum_rate_game(decision)
+
+            sum_rate=(Sum_rate_SU+Sum_rate_PU) ** 2
+            user_num=len(Rate_PU)+len(Rate_SU)
+            user_rate=sum(np.array(Rate_SU) ** 2)+sum(np.array(Rate_PU) ** 2)
+            # Fairness = sum_rate/(user_num*user_rate)
+            Fairness = Sum_rate_SU**2/(len(Rate_SU)*sum(np.array(Rate_SU) ** 2))
+            reward= cchn.calculate_reward(decision)
+
+            sum_rate_su.append(Sum_rate_SU)
+
+            sum_rate_pu.append(Sum_rate_PU)
+            fairness.append(Fairness)
+            reward_.append(reward)
+
+        Sum_rate_PU=np.mean(sum_rate_pu)
+        Sum_rate_SU=np.mean(sum_rate_su)
+        Fairness=np.mean(fairness)
+        reward=np.mean(reward_)
 
         return  Sum_rate_PU, Sum_rate_SU,Fairness,reward

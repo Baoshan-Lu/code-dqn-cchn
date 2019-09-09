@@ -67,6 +67,7 @@ if __name__ == '__main__':
     parameters.add_argument('--transition_steps', type=int, default=20)
     parameters.add_argument('--iteration', type=int, default=2000)
 
+
     parameters.add_argument('--gpu_type', type=bool, default=False, choices=[True, False])
     parameters.add_argument('--pretrain', type=bool, default=False, choices=[True, False])
 
@@ -75,18 +76,20 @@ if __name__ == '__main__':
     parameters.add_argument('--noisy_dqn', type=bool, default=False, choices=[True, False])
 
     parameters.add_argument('--distance', type=int, default=[200, 300, 50, 100])
-    parameters.add_argument('--weight_reward', type=float, default=[1, 1, 0.0])  # pu,su,pu_sinr
+    parameters.add_argument('--weight_reward', type=float, default=[0, 1, 0,0])  # pu,su,pu_sinr
 
+    parameters.add_argument('--sense_coverage', type=int, default=800)
 
 
     '''初始参数'''
     parameters = parameters.parse_args([
-        '--radius', '1000', '--primary_number', '50', '--secondary_number', '80',
+        '--radius', '500', '--primary_number', '50', '--secondary_number', '80',
         '--CR_router_number', '100',
         '--power_set_number', '4',
         '--memory_capacity', '2000', '--start_train', '64', '--batchsize', '256',
         '--primary_rate_min', '20000',
-        '--iteration', '80', '--epoch', '50', '--learning_rate', '0.01'
+        '--iteration', '80', '--epoch', '50', '--learning_rate', '0.01',
+        '--sense_coverage','500'
     ])
 
     '''==One:  随机种子'''
@@ -108,9 +111,9 @@ if __name__ == '__main__':
     batchsize_default = 32
 
     DQN_epoch = 300
-    pu_num = 10
-    su_num = 3
-    crr_num = 5
+    pu_num = 2
+    su_num = 4
+    crr_num = 20
 
     DQN_CG_RA_epoch = 50
 
@@ -141,16 +144,13 @@ if __name__ == '__main__':
 
 
     print('Start simulation....')
-    # s=2
-    # print('dfsadfsafsa') if s > 2 else print('dsdfsds')
-
-    # print('\nSimulate_mode=1: Fig1  DQN-DoubleDQN-DuelingDQN——对比 \n')
-    # model=['nature','double']
-    # #,#, 'double' 'dueling', 'double_dueling']
-    # Performace.compare_different_dqn_model1(pu_num=pu_num, su_num=su_num, crr_num=crr_num,
-    #                                        EPOCH=DQN_epoch, ITERATION=320, learningrate=0.02,
-    #                                        batchsize=32, model=model,
-    #                                         sum_rate_type=sum_rate_type,show=False)
+    print('\nSimulate_mode=1: Fig1  DQN-DoubleDQN-DuelingDQN——对比 \n')
+    model=['nature','double']
+    #,#, 'double' 'dueling', 'double_dueling']
+    Performace.compare_different_dqn_model1(pu_num=pu_num, su_num=su_num, crr_num=crr_num,
+                                           EPOCH=DQN_epoch, ITERATION=320, learningrate=0.01,
+                                           batchsize=32, model=model,
+                                            sum_rate_type=sum_rate_type,show=False)
     #
     # print('\nSimulate_mode=2: Fig2 不同batch size的训练过程')
     # Performace.sum_rate_varying_batchsize(pu_num=pu_num, su_num=su_num, crr_num=crr_num,
@@ -173,39 +173,39 @@ if __name__ == '__main__':
     #                                              model=default_model,
     #                                              epsion=[0.7, 0.8, 0.9],sum_rate_type=sum_rate_type,show=False)
 
-    print('\nSimulate_mode=61: Fig3 DQN-RA_CG  SU sum_rate fairness  reward \n')
-    Performace.compare_dqn_random_game_sum_rate_fairness_reward(pu_num=pu_num_compare, su_num=su_num_vary, crr_num=crr_num,
-                                                                EPOCH=DQN_CG_RA_epoch, ITERATION=80, learningrate=0.01,
-                                                                batchsize=batchsize_default,
-                                                                mode='su', model=default_model
-                                                                ,game_fail_num=game_fail_num,sum_rate_type=sum_rate_type,show=False)
-
-    print('\nSimulate_mode=62: Fig3 DQN-RA_CG  PU sum_rate fairness  reward  \n')
-    Performace.compare_dqn_random_game_sum_rate_fairness_reward(pu_num=pu_num_vary, su_num=su_num_compare, crr_num=crr_num,
-                                                                EPOCH=DQN_CG_RA_epoch, ITERATION=80, learningrate=0.01,
-                                                                batchsize=32,
-                                                                mode='pu', model=default_model,
-                                                                game_fail_num=game_fail_num,sum_rate_type=sum_rate_type,show=False)
-
-    print('\nSimulate_mode=63: Fig3 DQN-RA_CG   CRR sum_rate fairness  reward  \n')
-    Performace.compare_dqn_random_game_sum_rate_fairness_reward(pu_num=pu_num_compare, su_num=su_num_vary, crr_num=[5, 15, 25],
-                                                                EPOCH=DQN_CG_RA_epoch, ITERATION=80, learningrate=0.01,
-                                                                batchsize=32,
-                                                                mode='crr', model=default_model,game_fail_num=game_fail_num,
-                                                                sum_rate_type=sum_rate_type,show=False)
-
-    print('Simulate_mode=64: Fig3 DQN-RA_CG   CRR sum_rate fairness  reward  \n')
-    Performace.compare_dqn_random_game_sum_rate_fairness_reward(pu_num=pu_num_compare, su_num=su_num_vary, crr_num=crr_num,
-                                                                EPOCH=DQN_CG_RA_epoch, ITERATION=80, learningrate=0.01,
-                                                                batchsize=32,
-                                                                mode='power', model=default_model,power_num=[4,8,12],
-                                                                game_fail_num=game_fail_num,sum_rate_type=sum_rate_type,show=False)
+    # print('\nSimulate_mode=61: Fig3 DQN-RA_CG  SU sum_rate fairness  reward \n')
+    # Performace.compare_dqn_random_game_sum_rate_fairness_reward(pu_num=pu_num_compare, su_num=su_num_vary, crr_num=crr_num,
+    #                                                             EPOCH=DQN_CG_RA_epoch, ITERATION=80, learningrate=0.01,
+    #                                                             batchsize=batchsize_default,
+    #                                                             mode='su', model=default_model
+    #                                                             ,game_fail_num=game_fail_num,sum_rate_type=sum_rate_type,show=False)
     #
-    print('Simulate_mode=7: Fig7 DQN-RA_CG reward different MRQ 对比  \n')
-    Performace.compare_dqn_random_game_reward_with_different_mrq(min_rate_mat=[0.005, 0.010, 0.015, 0.020, 0.025,0.030,0.035,0.04],
-                                                                 pu_num=pu_num_compare, su_num=su_num_compare, crr_num=crr_num,
-                                                                 EPOCH=DQN_CG_RA_epoch, ITERATION=80, learningrate=0.01,
-                                                                 batchsize=32, mode='su', model=default_model,
-                                                                 game_fail_num=game_fail_num,sum_rate_type=sum_rate_type,show=False)
+    # print('\nSimulate_mode=62: Fig3 DQN-RA_CG  PU sum_rate fairness  reward  \n')
+    # Performace.compare_dqn_random_game_sum_rate_fairness_reward(pu_num=pu_num_vary, su_num=su_num_compare, crr_num=crr_num,
+    #                                                             EPOCH=DQN_CG_RA_epoch, ITERATION=80, learningrate=0.01,
+    #                                                             batchsize=32,
+    #                                                             mode='pu', model=default_model,
+    #                                                             game_fail_num=game_fail_num,sum_rate_type=sum_rate_type,show=False)
+    #
+    # print('\nSimulate_mode=63: Fig3 DQN-RA_CG   CRR sum_rate fairness  reward  \n')
+    # Performace.compare_dqn_random_game_sum_rate_fairness_reward(pu_num=pu_num_compare, su_num=su_num_vary, crr_num=[5, 15, 25],
+    #                                                             EPOCH=DQN_CG_RA_epoch, ITERATION=80, learningrate=0.01,
+    #                                                             batchsize=32,
+    #                                                             mode='crr', model=default_model,game_fail_num=game_fail_num,
+    #                                                             sum_rate_type=sum_rate_type,show=False)
+    #
+    # print('Simulate_mode=64: Fig3 DQN-RA_CG   CRR sum_rate fairness  reward  \n')
+    # Performace.compare_dqn_random_game_sum_rate_fairness_reward(pu_num=pu_num_compare, su_num=su_num_vary, crr_num=crr_num,
+    #                                                             EPOCH=DQN_CG_RA_epoch, ITERATION=80, learningrate=0.01,
+    #                                                             batchsize=32,
+    #                                                             mode='power', model=default_model,power_num=[4,8,12],
+    #                                                             game_fail_num=game_fail_num,sum_rate_type=sum_rate_type,show=False)
+    # #
+    # print('Simulate_mode=7: Fig7 DQN-RA_CG reward different MRQ 对比  \n')
+    # Performace.compare_dqn_random_game_reward_with_different_mrq(min_rate_mat=[0.005, 0.010, 0.015, 0.020, 0.025,0.030,0.035,0.04],
+    #                                                              pu_num=pu_num_compare, su_num=su_num_compare, crr_num=crr_num,
+    #                                                              EPOCH=DQN_CG_RA_epoch, ITERATION=80, learningrate=0.01,
+    #                                                              batchsize=32, mode='su', model=default_model,
+    #                                                              game_fail_num=game_fail_num,sum_rate_type=sum_rate_type,show=False)
 
     print('=====================End===========================')
