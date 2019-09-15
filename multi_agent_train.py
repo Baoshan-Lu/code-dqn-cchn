@@ -78,7 +78,7 @@ class Model_train(object):
 
         print('==========System parameters==========')
         print('Primary_number=', pu_num, '|  Secondary_number=', su_num, '|  CR-routers=', crr_num, )
-        print('Power_number=', self.power_set_number, '|  Spectrum_number=', pu_num, '|  primary_rate_min=',self.primary_rate_min)
+        print('Power_number=', self.power_set_number,  '|  primary_rate_min=',self.primary_rate_min)
         print('States=', states, '| Actions =', actions, )
         print('Memory_capacity=', self.memory_capacity, '|  Batch size=', batchsize)
         print('Epoches=', EPOCH, '| Iterations=', ITERATION, '|  Learning_rate=', learningrate)
@@ -200,13 +200,13 @@ class Model_train(object):
         actions=cchn.get_action()
         states=cchn.get_state()
 
-        print('==========System parameters==========')
-        print('Primary_number=', pu_num, '|  Secondary_number=', su_num, '|  CR-routers=', crr_num,)
+        print('==========Coalition Model==========')
+        print('Primary_number=', pu_num, '|  CR-routers=', su_num)
         print('Power_number=', self.power_set_number, '|  primary_rate_min=', pu_min_rate)
         print('States=',states, '| Actions =', actions, '|  epsion=',epsion,)
         print('Memory_capacity=', self.memory_capacity, '|  Batch size=', batchsize)
-        print('Epoches=', EPOCH, '| Iterations=',ITERATION,'|  Learning_rate=', learningrate,'|  Stational lr=',stational_lr)
-        print('Device =', self.device,'| pretrained model=', self.pretrain, )
+        print('Epoches=', EPOCH, '| Iterations=',ITERATION,'|  Learning_rate=', learningrate)
+        print('Device =', self.device,'| Pretrained=', self.pretrain, '| Loss=',self.parameters.loss_function)
 
 
         '''1:生成各个模型'''
@@ -234,7 +234,7 @@ class Model_train(object):
 
                 for iteration in range(ITERATION):
                     state=cchn.obtain_state(old_decision_for_each_su,su_i)
-                    action=dqn_agent.choose_action(state,epoch/self.epoch)
+                    action=dqn_agent.choose_action(state,epoch/EPOCH)
                     reward,next_state,new_decision=cchn.evaluate_environmet1(action,su_i)
                     score += reward
 
@@ -245,47 +245,134 @@ class Model_train(object):
                     if dqn_agent.memory_counter > self.start_train:
                         loss =dqn_agent.learn()
                         total_loss=total_loss+loss
-
-                dqn_agent.reset_learning_rate(learningrate)
-
             loss_sum=loss_sum+total_loss/(ITERATION*su_num)
 
-            '''学习率调节'''
-            if epoch % 20 == 0:
-                if stational_lr == False:
-                    learningrate = pow(0.99, epoch) * learningrate
+            '''测试'''
+            Sum_rate_PU, Sum_rate_SU, Fairness, reward = self.calculte_user_fairness(cchn, agent, su_num)
+            sumrate = Sum_rate_PU + Sum_rate_SU
 
+            '''根据reward来调节学习率,如果n步没有提高reward，则降低学习率'''
+            for su_i in range(su_num):
+                dqn_agent = agent[su_i]
+                # dqn_agent.scheduler_max.step(reward)
+                dqn_agent.scheduler_min.step((loss_sum))
 
-            if epoch%1==0:
+            metrics['epoch'].append(epoch+1)
+            # metrics['sum_rate_pu'].append(Sum_rate_PU)
+            metrics['sum_rate_su'].append(Sum_rate_SU)
+            # metrics['sum_rate'].append(sumrate)
+            metrics['fairness'].append(Fairness)
+            metrics['reward'].append(reward)
+            metrics['total_loss'].append(loss_sum)
+            # print('\n')
 
-                Sum_rate_PU, Sum_rate_SU, Fairness, reward = self.calculte_user_fairness(cchn, agent, su_num)
-                sumrate = Sum_rate_PU + Sum_rate_SU
-
-                metrics['epoch'].append(epoch+1)
-                metrics['sum_rate_pu'].append(Sum_rate_PU)
-                metrics['sum_rate_su'].append(Sum_rate_SU)
-                metrics['sum_rate'].append(sumrate)
-                metrics['fairness'].append(Fairness)
-                metrics['reward'].append(reward)
-                metrics['total_loss'].append(loss_sum/su_num)
-                # print('\n')
+            if epoch % 1 == 0:
                 print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     '| Epoch:', epoch+1,
-                    '| total_loss: %.3f' % (loss_sum/su_num),
-                    '| Sum-rate of PUs: %.2f' % Sum_rate_PU,
+                    '| total_loss: %.3f' % (loss_sum),
+                    # '| Sum-rate of PUs: %.2f' % Sum_rate_PU,
                     '| Sum-rate of SUs: %.2f' % Sum_rate_SU,
                     # '| Sum-rate: %.2f' % sumrate,
                     '| Fairness: %.2f' % Fairness,
                     '| Reward: %.2f' % reward,
-                    '| Learing_rate: %.10f' %learningrate
+                    # '| Learing_rate: %.10f' %learningrate
                       # '\n'
                 )
-        Sum_rate_PU, Sum_rate_SU = self.calculte_user_sum_rate(cchn, agent, su_num)
-        Sum_rate_PU, Sum_rate_SU, Fairness,reward=self.calculte_user_fairness(cchn, agent, su_num)
+
 
 
         return  metrics,Sum_rate_PU,Sum_rate_SU,Fairness,reward
 
+    def multi_agent_for_distributed_model(self, cchn, pu_num=6, su_num=8, crr_num=10,
+                               EPOCH=10, ITERATION=80, learningrate=0.01, batchsize=32,
+                               inform='-1', model='double_dueling', epsion=0.8, pu_min_rate=20000, stational_lr=False):
+
+        cchn.abstract_network(primary_number=pu_num, secondary_number=su_num, CR_router_number=crr_num)
+        cchn.reset_min_pu_rate(pu_min_rate)
+
+        actions = cchn.get_action()
+        states = cchn.get_state_for_distributed_model()
+
+        print('==========Distribution Model==========')
+        print('Primary_number=', pu_num, '|  CR-routers=', su_num)
+        print('Power_number=', self.power_set_number, '|  primary_rate_min=', pu_min_rate)
+        print('States=',states, '| Actions =', actions, '|  epsion=',epsion,)
+        print('Memory_capacity=', self.memory_capacity, '|  Batch size=', batchsize)
+        print('Epoches=', EPOCH, '| Iterations=',ITERATION,'|  Learning_rate=', learningrate)
+        print('Device =', self.device,'| Pretrained=', self.pretrain, '| Loss=',self.parameters.loss_function)
+
+
+        '''1:生成各个模型'''
+        agent = []
+        for su_i in range(su_num):
+            name = DQN(self.parameters, actions, states, learningrate, batchsize)
+            name.reset_model(model=model)
+            name.reset_e_greedy_epsion(epsion)
+            agent.append(name)
+
+        print('Model= ', model, '  | Start training...')
+
+        metrics = {'epoch': [], 'sum_rate_su': [], 'sum_rate_pu': [], 'sum_rate': [], 'fairness': [], 'reward': [],
+                   'total_loss': []}
+
+        for epoch in range(EPOCH):
+            loss_sum = 0
+            for su_i in range(su_num):
+                dqn_agent = agent[su_i]
+                '''2:生成初始分配'''
+                old_decision = cchn.init_alloation()
+                old_decision_for_each_su = old_decision
+                score = 0
+                total_loss = 0
+                for iteration in range(ITERATION):
+                    state = cchn.obtain_state_for_distributed_model(old_decision_for_each_su, su_i)
+                    action = dqn_agent.choose_action(state, epoch / EPOCH)
+                    reward, next_state, new_decision = cchn.evaluate_environmet_for_distributed_model(action, su_i)
+                    score += reward
+
+                    dqn_agent.store_transition(state, action, reward, next_state)
+
+                    old_decision_for_each_su = new_decision
+
+                    if dqn_agent.memory_counter > self.start_train:
+                        loss = dqn_agent.learn()
+                        total_loss = total_loss + loss
+
+            loss_sum = loss_sum + total_loss / (ITERATION * su_num)
+
+            '''测试'''
+            Sum_rate_PU, Sum_rate_SU, Fairness, reward = self.calculte_user_fairness(cchn, agent, su_num)
+            sumrate = Sum_rate_PU + Sum_rate_SU
+
+            '''根据reward来调节学习率,如果n步没有提高reward，则降低学习率'''
+            for su_i in range(su_num):
+                dqn_agent = agent[su_i]
+                # dqn_agent.scheduler_max.step(reward)
+                dqn_agent.scheduler_min.step((loss_sum))
+
+            metrics['epoch'].append(epoch+1)
+            # metrics['sum_rate_pu'].append(Sum_rate_PU)
+            metrics['sum_rate_su'].append(Sum_rate_SU)
+            # metrics['sum_rate'].append(sumrate)
+            metrics['fairness'].append(Fairness)
+            metrics['reward'].append(reward)
+            metrics['total_loss'].append(loss_sum)
+            # print('\n')
+
+            if epoch % 1 == 0:
+                print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    '| Epoch:', epoch+1,
+                    '| total_loss: %.3f' % (loss_sum),
+                    # '| Sum-rate of PUs: %.2f' % Sum_rate_PU,
+                    '| Sum-rate of SUs: %.2f' % Sum_rate_SU,
+                    # '| Sum-rate: %.2f' % sumrate,
+                    '| Fairness: %.2f' % Fairness,
+                    '| Reward: %.2f' % reward,
+                    # '| Learing_rate: %.10f' %learningrate
+                      # '\n'
+                )
+
+        return metrics
 
     def joint_model_trainning(self,cchn, pu_num=6, su_num=8, crr_num=10,
                     epoch=10,  learningrate=0.01, batchsize=32,
@@ -402,12 +489,6 @@ class Model_train(object):
         plt.show()
 
 
-
-
-
-
-
-
     def calculte_user_sum_rate(self,cchn,agent_name,su_num):
 
         decision=cchn.init_alloation_test()
@@ -475,3 +556,49 @@ class Model_train(object):
         reward=np.mean(reward_)
 
         return  Sum_rate_PU, Sum_rate_SU,Fairness,reward
+
+    def calculte_user_sum_rate_fairness_for_distribute_model(self, cchn, agent_name, su_num):
+
+        sum_rate_su = []
+        sum_rate_pu = []
+        fairness = []
+        reward_ = []
+
+        for i in range(10):
+            decision = cchn.init_alloation_test()
+            # print('\nInit_decision:',decision)
+
+            for su_i in range(su_num):
+                state = cchn.obtain_state_for_distributed_model(decision, su_i)
+                '''根据state，确定su_i的动作'''
+                action = agent_name[su_i].choose_max_Q_action(state)
+                '''执行动作'''
+                cchn.evaluate_environmet_test(action, su_i)
+
+            '''测试，执行所有动作，系统进入下一个状态'''
+            decision = cchn.test_environmet()
+
+            # print('Final_decision:',decision)
+
+            Sum_rate_PU, Sum_rate_SU, SINR_PU, Interference_PU = cchn.get_sum_rate_test(decision)
+            Rate_PU, Rate_SU = cchn.get_sum_rate_game(decision)
+
+            # sum_rate = (Sum_rate_SU + Sum_rate_PU) ** 2
+            # user_num = len(Rate_PU) + len(Rate_SU)
+            # user_rate = sum(np.array(Rate_SU) ** 2) + sum(np.array(Rate_PU) ** 2)
+            # Fairness = sum_rate/(user_num*user_rate)
+            Fairness = Sum_rate_SU ** 2 / (len(Rate_SU) * sum(np.array(Rate_SU) ** 2))
+            reward = cchn.calculate_reward(decision)
+
+            sum_rate_su.append(Sum_rate_SU)
+
+            sum_rate_pu.append(Sum_rate_PU)
+            fairness.append(Fairness)
+            reward_.append(reward)
+
+        Sum_rate_PU = np.mean(sum_rate_pu)
+        Sum_rate_SU = np.mean(sum_rate_su)
+        Fairness = np.mean(fairness)
+        reward = np.mean(reward_)
+
+        return Sum_rate_PU, Sum_rate_SU, Fairness, reward

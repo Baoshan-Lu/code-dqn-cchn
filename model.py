@@ -7,6 +7,8 @@ class NatureNet(nn.Module):
     def __init__(self,states,actions,):
         super(NatureNet, self).__init__()
 
+        # self.embeding_layer = nn.Embedding(states, 300)
+
         self.input_layer = nn.Sequential(
             nn.Linear(states, 256),
             nn.ReLU(),
@@ -20,6 +22,8 @@ class NatureNet(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x=self.embeding_layer(x)
+
         feature = self.input_layer(x)
         actions_value = self.output_layer(feature)
 
@@ -30,6 +34,8 @@ class DuelingNet(nn.Module):
         """Initialization."""
         super(DuelingNet, self).__init__()
         # set common feature layer
+        # self.embeding_layer = nn.Embedding(states, 300)
+
         self.feature_layer = nn.Sequential(
             nn.Linear(states, 256),
             nn.ReLU(),
@@ -52,6 +58,8 @@ class DuelingNet(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward method implementation."""
+        # x=self.embeding_layer(x)
+
         feature = self.feature_layer(x)
         # feature = self.hidden_layer(feature)
         # print('--------------')
@@ -167,6 +175,7 @@ class DQN(object):
 
         self.states = states
         self.action = actions
+        self.loss_function=parameters.loss_function
 
         self.gpu_type = parameters.gpu_type
         self.save_path = parameters.save_path
@@ -212,7 +221,6 @@ class DQN(object):
             self.eval_net, self.target_net = NoisyNet(states, actions).to(self.device), \
                                              NoisyNet(states, actions).to(self.device),
 
-
         # if self.pretrain==True: #使用预训练模型
         #     self.eval_net, self.target_net = torch.load(self.save_path + 'eval_net'), \
         #                                      torch.load(self.save_path + 'eval_net')
@@ -223,8 +231,20 @@ class DQN(object):
 
         ''''优化器选择'''
         self.optimizer = torch.optim.Adam(self.eval_net.parameters(), lr=self.learning_rate) #优化器选择
+        '''默认损失函数'''
         self.loss_func = nn.MSELoss()
+        # Smooth L1
+        # 相比于L1损失函数，可以收敛得更快。
+        # 相比于L2损失函数，对离群点、异常值不敏感，梯度变化相对更小，训练时不容易跑飞。
 
+        '''学习率调节'''
+        self.scheduler_min = torch.optim.lr_scheduler.ReduceLROnPlateau\
+            (self.optimizer, 'min', patience=parameters.lr_patience,
+                                                         factor=parameters.lr_decay, threshold=1e-3)
+
+        self.scheduler_max = torch.optim.lr_scheduler.ReduceLROnPlateau\
+            (self.optimizer, 'max', patience=parameters.lr_patience,
+                                                         factor=parameters.lr_decay, threshold=1e-3)
     def reset_learning_rate(self,learning_rate):
         self.learning_rate=learning_rate
 
@@ -355,8 +375,12 @@ class DQN(object):
         # print(self.count,'\nq_eval=', q_eval.view(1, self.batchsize),'\nq_target=',q_target.view(1, self.batchsize))
 
         # print(self.count,'\nq_next.max(1)=', q_next,q_next.max(1),'\nq_next.max(1)[0]=',q_next.max(1)[0])
+        if self.loss_function == 'MSE':
+            loss = self.loss_func(q_eval, q_target)
 
-        loss = self.loss_func(q_eval, q_target)
+        if self.loss_function == 'Smoothl1loss':
+            loss = F.smooth_l1_loss(q_eval, q_target)
+
 
         self.optimizer.zero_grad()
         loss.backward()

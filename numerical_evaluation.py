@@ -66,6 +66,106 @@ class Performace(object):
 
         # plt.show()
 
+
+    def compare_coalition_distrbuted_model(self, pu_num=3, su_num=3, crr_num=5,
+                                           EPOCH=2, ITERATION=80,learningrate=0.01,epsion=0.8,
+                                           batchsize=8, mode='su', model='double_dueling',
+                                           power_num=[2,4,6],game_fail_num=200,sum_rate_type='su',show=False):
+
+        metrics1, Sum_rate_PU1, Sum_rate_SU1, Fairness1, reward_old1=\
+            self.model_train.multi_agent_vary_model(cchn=self.cchn, pu_num=pu_num, su_num=su_num, crr_num=crr_num,
+                                                EPOCH=EPOCH, ITERATION=ITERATION, epsion=epsion,learningrate=learningrate,
+                                                batchsize=batchsize, inform='-1', model=model)
+
+        metrics2=self.model_train.multi_agent_for_distributed_model(cchn=self.cchn, pu_num=pu_num, su_num=su_num,crr_num=crr_num,
+                                                EPOCH=EPOCH, ITERATION=ITERATION, epsion=epsion,learningrate=learningrate,
+                                                batchsize=batchsize, inform='-1', model=model)
+
+
+
+        scio.savemat(self.simulation_result_path + 'data/Fig8_dis_coa' + mode + '.mat',
+                     {'metrics1':metrics1, 'metrics2':metrics2})
+
+        if show==True:
+
+            lable=['Coalition model','Distribution model']
+            MarkerSize=1
+
+            plt.figure(figsize=(8, 5))
+            plt.xlabel(r'Epoch', fontsize=15)
+            plt.ylabel(r'Loss', fontsize=15)
+            # plt.ylabel(r'Sum-rate of PU links (Mnats/s)', fontsize=15)
+            plt.plot(metrics1['epoch'], metrics1['total_loss'], self.display[0], MarkerSize=MarkerSize,
+            label=lable[0])
+            plt.plot(metrics2['epoch'], metrics2['total_loss'], self.display[1], MarkerSize=MarkerSize,
+            label=lable[1])
+
+            # plt.xticks(results['user_number'])
+            plt.grid()  # 生成网格
+            plt.legend(fontsize=12)
+            plt.savefig(self.simulation_result_path + 'png/' + 'Coa_Dis loss' + '.png', dpi=600,
+            bbox_inches='tight')
+            plt.savefig(self.simulation_result_path + 'pdf/ ' + 'Coa_Dis loss'+ '.pdf', dpi=600,
+            bbox_inches='tight')
+
+
+
+            plt.figure(figsize=(8, 5))
+            plt.xlabel(r'Epoch', fontsize=15)
+            plt.ylabel(r'Sum-rate of CI links (Mnat/s)', fontsize=15)
+            # plt.ylabel(r'Sum-rate of PU links (Mnats/s)', fontsize=15)
+            plt.plot(metrics1['epoch'], np.array(metrics1['sum_rate_su'])/pow(10,6), self.display[0], MarkerSize=MarkerSize,
+            label=lable[0])
+            plt.plot(metrics2['epoch'], np.array(metrics2['sum_rate_su'])/pow(10,6), self.display[1], MarkerSize=MarkerSize,
+            label=lable[1])
+
+            # plt.xticks(results['user_number'])
+            plt.grid()  # 生成网格
+            plt.legend(fontsize=12)
+            plt.savefig(self.simulation_result_path + 'png/' + 'Coa_Dis sum_rate_su' + '.png', dpi=600,
+            bbox_inches='tight')
+            plt.savefig(self.simulation_result_path + 'pdf/ ' + 'Coa_Dis sum_rate_su'+ '.pdf', dpi=600,
+            bbox_inches='tight')
+
+            plt.figure(figsize=(8, 5))
+            plt.xlabel(r'Epoch', fontsize=15)
+            plt.ylabel(r'Reward', fontsize=15)
+            # plt.ylabel(r'Sum-rate of PU links (Mnats/s)', fontsize=15)
+            plt.plot(metrics1['epoch'], np.array(metrics1['reward']) , self.display[0],
+                     MarkerSize=MarkerSize,
+                     label=lable[0])
+            plt.plot(metrics2['epoch'], np.array(metrics2['reward']) , self.display[1],
+                     MarkerSize=MarkerSize,
+                     label=lable[1])
+
+            # plt.xticks(results['user_number'])
+            plt.grid()  # 生成网格
+            plt.legend(fontsize=12)
+            plt.savefig(self.simulation_result_path + 'png/' + 'Coa_Dis reward' + '.png', dpi=600,
+                        bbox_inches='tight')
+            plt.savefig(self.simulation_result_path + 'pdf/ ' + 'Coa_Dis reward' + '.pdf', dpi=600,
+                        bbox_inches='tight')
+
+
+            plt.figure(figsize=(8, 5))
+            plt.xlabel(r'Epoch', fontsize=15)
+            plt.ylabel(r'Fairness', fontsize=15)
+            # plt.ylabel(r'Sum-rate of PU links (Mnats/s)', fontsize=15)
+            plt.plot(metrics1['epoch'], np.array(metrics1['fairness']), self.display[0],
+                     MarkerSize=MarkerSize,
+                     label=lable[0])
+            plt.plot(metrics2['epoch'], np.array(metrics2['fairness']), self.display[1],
+                     MarkerSize=MarkerSize,
+                     label=lable[1])
+
+            # plt.xticks(results['user_number'])
+            plt.grid()  # 生成网格
+            plt.legend(fontsize=12)
+            plt.savefig(self.simulation_result_path + 'png/' + 'Coa_Dis fairness' + '.png', dpi=600,
+                        bbox_inches='tight')
+            plt.savefig(self.simulation_result_path + 'pdf/ ' + 'Coa_Dis fairness' + '.pdf', dpi=600,
+                        bbox_inches='tight')
+
     def compare_dqn_random_game_sum_rate_fairness_reward(self, pu_num=3, su_num=3, crr_num=5, EPOCH=2, ITERATION=80,
                                 learningrate=0.01,
                                 batchsize=8, mode='su', model='double_dueling',power_num=[2,4,6],game_fail_num=200,sum_rate_type='su',show=False):

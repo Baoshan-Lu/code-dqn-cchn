@@ -139,6 +139,19 @@ class CCHN(object):
              6-interference of PU       1'''
         return state_num
 
+    def get_state_for_distributed_model(self):
+        state = self.obtain_state_for_distributed_model(self.decision, 0)
+        state_num = len(state)
+        '''state: 
+             1-cr_router_energy_state1  
+             2-reward                   1
+             3-interference of SU       1
+             4-power decision of SU     1
+             5-spectrum decision of SU  1
+             6-interference of PU       1'''
+        return state_num
+
+
     def get_state_for_joint_model(self):
         state = self.obtain_state_for_joint_model(self.decision, 0)
         state_num = len(state)
@@ -351,6 +364,9 @@ class CCHN(object):
 
         return Rate_SU, SINR_SU, Interference_SU
 
+
+
+
     def calculate_pu_sinr_rate(self, vec):
 
         # vec=self.decision
@@ -561,6 +577,44 @@ class CCHN(object):
 
         return cr_router_energy_state, cr_router_energy_state1
 
+    def calculate_cr_router_state_for_CI_link(self, vec):
+        primary_coord = self.network[0]
+        secondary_coord = self.network[1]
+        CR_router_coord = self.network[2]
+
+        # vec=self.decision
+        cr_router_energy_state_total = []
+        cr_router_energy_state_individual = []
+        for cr_router_i in range(self.secondary_number):
+            energy_detector_cr_router_i = []
+            for PU_j in range(self.primary_number):
+                Gain_Tx1_Rx11, Gain_Tx2_Rx11 = self.channelgain(secondary_coord, primary_coord, cr_router_i, PU_j)
+                '''PU'''
+                energy_from_pu = self.primary_init_power * Gain_Tx2_Rx11
+
+                energy_from_su = []
+                for su_k in range(self.secondary_number):
+                    if vec[0][su_k] == PU_j:  # 占用同一频谱的全部SU的干扰功率
+                        # print('SU_j:', k)
+                        Gain_Tx1_Rx11, Gain_Tx2_Rx11 = self.channelgain(secondary_coord, secondary_coord, cr_router_i,su_k)
+                        interference_from_su_k = self.power_set[vec[1][su_k]] * Gain_Tx2_Rx11
+                        energy_from_su.append(interference_from_su_k)
+                '''SU'''
+                total_energy_from_su = sum(energy_from_su)
+
+                energy_detector_cr_router_i.append((total_energy_from_su) / (self.noise_power + energy_from_pu))
+
+                '''所有CR-router的信息'''
+                cr_router_energy_state_total.append((total_energy_from_su) / (self.noise_power + energy_from_pu))
+
+            '''单独CR-router的信息'''
+            cr_router_energy_state_individual.append(energy_detector_cr_router_i)
+
+        return cr_router_energy_state_individual, cr_router_energy_state_total
+
+
+
+
     def calculate_cr_router_state_amend(self, vec):
         ''''''''
         ''''CR-router 只控制一定范围的频谱感应，不是全网式的搜索'''
@@ -616,6 +670,20 @@ class CCHN(object):
 
         return cr_router_energy_state, cr_router_energy_state1
 
+    def obtain_state_for_distributed_model(self, vec, su_j):
+        # vec=self.decision
+        # cr_router_energy_state, cr_router_energy_state1 = self.calculate_cr_router_state(vec)
+        cr_router_energy_state_individual, cr_router_energy_state_total= self.calculate_cr_router_state_for_CI_link(vec)
+
+        # if su_j+1 < self.secondary_number:
+        #     su_j=su_j+1
+        # else:
+        #     su_j=0
+        state=cr_router_energy_state_individual[su_j]
+
+        # reward = self.calculate_reward(vec)
+
+        return state
 
 
     def obtain_state(self, vec, su_j):
@@ -771,6 +839,34 @@ class CCHN(object):
         return   self.decision_for_joint_model
     def update_environment(self):
         return self.decision
+
+    def evaluate_environmet_for_distributed_model(self, act, su_i):
+        action = self.action_mapping(act)
+        # print('action_map:',action)
+
+        # vec=self.decision
+        vec1 = self.decision_temp
+
+        # print('Old Spect_SU:', vec[0])
+        #         # print('Old Power_SU:', vec[1])
+
+        '''new spectrum decision'''
+        # vec[0][su_i]=action[0]
+        vec1[0][su_i] = action[0]
+        co_channel_pu=action[0]
+        '''new power decision'''
+        # vec[1][su_i]=action[1]
+        vec1[1][su_i] = action[1]
+
+        self.decision_temp = vec1
+        reward = self.calculate_reward_amend(vec1,co_channel_pu)
+
+        next_state = self.obtain_state_for_distributed_model(vec1, su_i)
+        #
+        # print('\nNew Spect_SU:', vec[0])
+        # print('New Power_SU:', vec[1])
+
+        return reward, next_state, vec1  # , self.decision_temp#self.decision
 
 
     def evaluate_environmet1(self, act, su_i):
